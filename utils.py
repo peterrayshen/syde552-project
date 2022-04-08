@@ -6,6 +6,13 @@ import hashlib
 from six.moves.urllib.error import HTTPError 
 from six.moves.urllib.error import URLError
 from six.moves.urllib.request import urlretrieve
+import pandas as pd
+
+import torch
+import torch.nn as nn
+import torchvision
+from torch.utils import data
+import numpy as np
 
 # The functions used in this file to download the dataset are based on 
 # code from the keras library. Specifically, from the following file:
@@ -119,3 +126,132 @@ def get_file(fname,
                 os.remove(fpath)
 
     return fpath
+
+def sparse_data_generator_from_hdf5_spikes(X, y, batch_size, nb_steps, nb_units, max_time, device, shuffle=True):
+    """ This generator takes a spike dataset and generates spiking network input as sparse tensors. 
+
+    Args:
+        X: The data ( sample x event x 2 ) the last dim holds (time,neuron) tuples
+        y: The labels
+    """
+
+    labels_ = np.array(y,dtype=np.int64)
+    number_of_batches = len(labels_)//batch_size
+    sample_index = np.arange(len(labels_))
+
+    # compute discrete firing times
+    firing_times = X['times']
+    units_fired = X['units']
+    
+    time_bins = np.linspace(0, max_time, num=nb_steps)
+
+    if shuffle:
+        np.random.shuffle(sample_index)
+
+    total_batch_count = 0
+    counter = 0
+    while counter<number_of_batches:
+        batch_index = sample_index[batch_size*counter:batch_size*(counter+1)]
+
+        coo = [ [] for i in range(3) ]
+        for bc,idx in enumerate(batch_index):
+            times = np.digitize(firing_times[idx], time_bins)
+            units = units_fired[idx]
+            batch = [bc for _ in range(len(times))]
+            
+            coo[0].extend(batch)
+            coo[1].extend(times)
+            coo[2].extend(units)
+
+        i = torch.LongTensor(coo).to(device)
+        v = torch.FloatTensor(np.ones(len(coo[0]))).to(device)
+    
+        X_batch = torch.sparse.FloatTensor(i, v, torch.Size([batch_size,nb_steps,nb_units])).to(device)
+        y_batch = torch.tensor(labels_[batch_index],device=device)
+
+        yield X_batch.to(device=device), y_batch.to(device=device)
+
+        counter += 1
+
+def sparse_data_generator_from_hdf5_spikes_2(X: pd.DataFrame, y: np.ndarray, batch_size, nb_steps, nb_units, max_time, device, shuffle=True):
+    """ This generator takes a spike dataset and generates spiking network input as sparse tensors. 
+
+    Args:
+        X: The data ( sample x event x 2 ) the last dim holds (time,neuron) tuples: as np array
+        y: The labels: as np array
+    """
+
+    labels_ = y.astype(np.int64)
+    number_of_batches = len(labels_)//batch_size
+    sample_index = np.arange(len(labels_))
+
+    # compute discrete firing times
+    firing_times = X['times'].values
+    units_fired = X['units'].values
+    
+    time_bins = np.linspace(0, max_time, num=nb_steps)
+
+    if shuffle:
+        np.random.shuffle(sample_index)
+
+    total_batch_count = 0
+    counter = 0
+    while counter<number_of_batches:
+        batch_index = sample_index[batch_size*counter:batch_size*(counter+1)]
+
+        coo = [ [] for i in range(3) ]
+        for bc,idx in enumerate(batch_index):
+            times = np.digitize(firing_times[idx], time_bins)
+            units = units_fired[idx]
+            batch = [bc for _ in range(len(times))]
+            
+            coo[0].extend(batch)
+            coo[1].extend(times)
+            coo[2].extend(units)
+
+        i = torch.LongTensor(coo).to(device)
+        v = torch.FloatTensor(np.ones(len(coo[0]))).to(device)
+    
+        X_batch = torch.sparse.FloatTensor(i, v, torch.Size([batch_size,nb_steps,nb_units])).to(device)
+        y_batch = torch.tensor(labels_[batch_index],device=device)
+
+        yield X_batch.to(device=device), y_batch.to(device=device)
+
+        counter += 1
+
+class SurrGradSpike(torch.autograd.Function):
+    """
+    Here we implement our spiking nonlinearity which also implements 
+    the surrogate gradient. By subclassing torch.autograd.Function, 
+    we will be able to use all of PyTorch's autograd functionality.
+    Here we use the normalized negative part of a fast sigmoid 
+    as this was done in Zenke & Ganguli (2018).
+    """
+    
+    scale = 100.0 # controls steepness of surrogate gradient
+
+    @staticmethod
+    def forward(ctx, input):
+        """
+        In the forward pass we compute a step function of the input Tensor
+        and return it. ctx is a context object that we use to stash information which 
+        we need to later backpropagate our error signals. To achieve this we use the 
+        ctx.save_for_backward method.
+        """
+        ctx.save_for_backward(input)
+        out = torch.zeros_like(input)
+        out[input > 0] = 1.0
+        return out
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        """
+        In the backward pass we receive a Tensor we need to compute the 
+        surrogate gradient of the loss with respect to the input. 
+        Here we use the normalized negative part of a fast sigmoid 
+        as this was done in Zenke & Ganguli (2018).
+        """
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        grad = grad_input/(SurrGradSpike.scale*torch.abs(input)+1.0)**2
+        return grad
