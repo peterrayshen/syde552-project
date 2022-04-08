@@ -211,7 +211,7 @@ for i in range(len(uniform_lower_bounds)):
         return np.mean(accs)
 
     def get_mini_batch(x_data, y_data, shuffle=False):
-        for ret in sparse_data_generator_from_hdf5_spikes(x_data, y_data, batch_size, nb_steps, nb_inputs, max_time, shuffle=shuffle):
+        for ret in sparse_data_generator_from_hdf5_spikes(x_data, y_data, batch_size, nb_steps, nb_inputs, max_time, device, shuffle=shuffle):
             return ret 
 
     loss_supervised_train, loss_supervised_valid, loss_reg_train, loss_reg_valid = train_with_validation(x_train_train, y_train_train, x_train_valid, y_train_valid, lr=lr, nb_epochs=nb_epochs)
