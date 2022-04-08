@@ -251,7 +251,7 @@ for i in range(len(uniform_lower_bounds)):
         'spk_rec': spk_rec,
     })
 
-with open('learn_curve_uniform_tau.pkl', 'wb') as f:
+with open('results/learn_curve_uniform_tau.pkl', 'wb') as f:
     pickle.dump(xp_results, f)
 
 
