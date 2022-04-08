@@ -16,15 +16,24 @@ import pickle
 from utils import SurrGradSpike, get_shd_dataset, sparse_data_generator_from_hdf5_spikes, sparse_data_generator_from_hdf5_spikes_2
 from collections import Counter
 from sklearn.model_selection import train_test_split
-from constants import nb_inputs, nb_hidden, nb_outputs, time_step, nb_steps, max_time, batch_size, tau_mem_readout, tau_syn
+from constants import xp_type_tau_constant, xp_type_tau_gauss, xp_type_tau_uniform, nb_inputs, nb_hidden, nb_outputs, time_step, nb_steps, max_time, batch_size, tau_mem_readout, tau_syn
 
-# experiment params
+# uniform tau xp params
 uniform_lower_bounds = np.array([38, 35, 30, 20]) * 1e-3
 uniform_upper_bounds = np.array([42, 45, 50, 60]) * 1e-3
-uniform_lower_bounds = np.array([38, 35]) * 1e-3
-uniform_upper_bounds = np.array([42, 45]) * 1e-3
+
+# gaussian tau xp params
+gauss_mean = 40e-3
+gauss_std = 20e-3
+
+# constant tau xp params
+constant_tau = 40e-3
+
+# general xp params
+xp_type = xp_type_tau_uniform
 nb_epochs = 2
 lr = 1e-3
+
 
 dtype = torch.float
 
@@ -58,12 +67,22 @@ xp_results = []
 assert uniform_lower_bounds.shape[0] == uniform_upper_bounds.shape[0]
 for i in range(len(uniform_lower_bounds)):
 
-    # init training
-    uniform_lower = uniform_lower_bounds[i]
-    uniform_upper = uniform_upper_bounds[i]
-    uniform_tau_np = np.tile(np.random.uniform(low=uniform_lower, high=uniform_upper, size=nb_hidden), (batch_size, 1))
-    uniform_beta_np = np.exp(-time_step/uniform_tau_np)
-    uniform_beta_torch = torch.from_numpy(uniform_beta_np).float().to(device=device)
+    if xp_type == xp_type_tau_uniform:
+        uniform_lower = uniform_lower_bounds[i]
+        uniform_upper = uniform_upper_bounds[i]
+        uniform_tau_np = np.tile(np.random.uniform(low=uniform_lower, high=uniform_upper, size=nb_hidden), (batch_size, 1))
+        uniform_beta_np = np.exp(-time_step/uniform_tau_np)
+        beta_distribution = torch.from_numpy(uniform_beta_np).float().to(device=device)
+    elif xp_type == xp_type_tau_gauss:
+        gauss_tau_np = np.tile(np.random.normal(loc=gauss_mean, scale=gauss_std, size=(nb_hidden)), (batch_size, 1))
+        gauss_beta_np =  np.exp(-time_step/gauss_tau_np)
+        beta_distribution = torch.from_numpy(gauss_beta_np).float().to(device=device) 
+    elif xp_type == xp_type_tau_constant:
+        constant_tau_np = np.ones((batch_size,nb_hidden)) * constant_tau
+        constant_beta_np = np.exp(-time_step/constant_tau_np)
+        beta_distribution = torch.from_numpy(constant_beta_np).float().to(device=device) 
+    else:
+        raise ValueError('xp type not recognized')
 
     weight_scale = 0.2
 
@@ -97,7 +116,7 @@ for i in range(len(uniform_lower_bounds)):
             rst = out.detach() # We do not want to backprop through the reset
 
             new_syn = alpha*syn +h1
-            new_mem =(uniform_beta_torch*mem +syn)*(1.0-rst)
+            new_mem =(beta_distribution*mem +syn)*(1.0-rst)
 
             mem_rec.append(mem)
             spk_rec.append(out)

@@ -11,3 +11,7 @@ batch_size = 256
 
 tau_mem_readout = 40e-3
 tau_syn = 20e-3
+
+xp_type_tau_constant = 'xp_type_tau_constant'
+xp_type_tau_uniform = 'xp_type_tau_uniform'
+xp_type_tau_gauss = 'xp_type_tau_gauss'
