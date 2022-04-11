@@ -18,9 +18,9 @@ from sklearn.model_selection import train_test_split
 from constants import xp_type_tau_constant, xp_type_tau_gauss, xp_type_tau_uniform, nb_inputs, nb_hidden, nb_outputs, time_step, nb_steps, max_time, batch_size, tau_mem_readout, tau_syn
 
 # general xp params
-nb_epochs = 2
+nb_epochs = 200
 lr = 1e-3
-num_trials = 2
+num_trials = 5
 
 for xp_type in [xp_type_tau_uniform, xp_type_tau_gauss, xp_type_tau_constant]: 
     if xp_type == xp_type_tau_uniform:
