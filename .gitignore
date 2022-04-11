@@ -1,4 +1,5 @@
 data/*
+train_results/*
 
 *.bundle.*
 lib/

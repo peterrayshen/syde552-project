@@ -261,7 +261,7 @@ for xp_type in [xp_type_tau_uniform, xp_type_tau_gauss, xp_type_tau_constant]:
                     mean_valid_loss = np.mean(local_loss_valid_reg)
                     loss_valid_supervised.append(mean_supervised_loss)
                     loss_valid_reg.append(mean_valid_loss)
-                    local_acc_valid = compute_classification_accuracy_2(batch_cache_train_train, device)
+                    local_acc_valid = compute_classification_accuracy_2(batch_cache_train_valid, device)
                     acc_valid.append(local_acc_valid)
                     print("Epoch %i: validation loss=%.5f, validation acc=%.5f"%(e+1,mean_supervised_loss + mean_valid_loss, local_acc_valid))
                 
