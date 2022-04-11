@@ -18,6 +18,7 @@ RUN wget https://compneuro.net/datasets/shd_test.h5.zip -P data
 RUN wget https://compneuro.net/datasets/shd_train.h5.zip -P data 
 RUN cd data && unzip shd_test.h5.zip && rm shd_test.h5.zip
 RUN cd data && unzip shd_train.h5.zip && rm shd_train.h5.zip
+RUN mkdir -p results
 
 COPY . .
 
