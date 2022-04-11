@@ -84,6 +84,16 @@ beta_readout    = float(np.exp(-time_step/tau_mem_readout))
 
 xp_results = []
 
+batch_cache_train_train = list(sparse_data_generator_from_hdf5_spikes_2(x_train_train, y_train_train, batch_size, nb_steps, nb_inputs, max_time, device))
+batch_cache_train_valid = list(sparse_data_generator_from_hdf5_spikes_2(x_train_valid, y_train_valid, batch_size, nb_steps, nb_inputs, max_time, device))
+batch_cache_test = list(sparse_data_generator_from_hdf5_spikes(x_test, y_test, batch_size, nb_steps, nb_inputs, max_time, device, shuffle=False))
+
+
+def get_mini_batch(x_data, y_data, shuffle=False):
+    for ret in sparse_data_generator_from_hdf5_spikes(x_data, y_data, batch_size, nb_steps, nb_inputs, max_time, device, shuffle=shuffle):
+        return ret 
+x_batch_mini, _ = get_mini_batch(x_test, y_test)
+
 for trial_num in range(num_trials):
     for i in range(xp_params['num_xps']):
         if xp_type == xp_type_tau_uniform:
@@ -166,10 +176,10 @@ for trial_num in range(num_trials):
             other_recs = [mem_rec, spk_rec]
             return out_rec, other_recs
 
-        def compute_classification_accuracy(x_data, y_data):
+        def compute_classification_accuracy(batch_cache):
             """ Computes classification accuracy on supplied data in batches. """
             accs = []
-            for x_local, y_local in sparse_data_generator_from_hdf5_spikes(x_data, y_data, batch_size, nb_steps, nb_inputs, max_time, device, shuffle=False):
+            for x_local, y_local in batch_cache_test:
                 output,_ = run_snn(x_local.to_dense())
                 m,_= torch.max(output,1) # max over time
                 _,am=torch.max(m,1)      # argmax over output units
@@ -187,10 +197,6 @@ for trial_num in range(num_trials):
                 tmp = np.mean((y_local==am).detach().cpu().numpy()) # compare to labels
                 accs.append(tmp)
             return np.mean(accs)
-
-        def get_mini_batch(x_data, y_data, shuffle=False):
-            for ret in sparse_data_generator_from_hdf5_spikes(x_data, y_data, batch_size, nb_steps, nb_inputs, max_time, device, shuffle=shuffle):
-                return ret 
 
         def train_with_validation(
             x_train_train, 
@@ -212,9 +218,6 @@ for trial_num in range(num_trials):
             loss_valid_reg = []
             acc_train = []
             acc_valid = []
-
-            batch_cache_train_train = list(sparse_data_generator_from_hdf5_spikes_2(x_train_train, y_train_train, batch_size, nb_steps, nb_inputs, max_time, device))
-            batch_cache_train_valid = list(sparse_data_generator_from_hdf5_spikes_2(x_train_valid, y_train_valid, batch_size, nb_steps, nb_inputs, max_time, device))
 
             for e in range(nb_epochs):
                 # train
@@ -277,10 +280,9 @@ for trial_num in range(num_trials):
 
         loss_supervised_train, loss_supervised_valid, loss_reg_train, loss_reg_valid, acc_train, acc_valid = train_with_validation(x_train_train, y_train_train, x_train_valid, y_train_valid, lr=lr, nb_epochs=nb_epochs)
 
-        x_batch, y_batch = get_mini_batch(x_test, y_test)
-        output, other_recordings = run_snn(x_batch.to_dense())
+        output, other_recordings = run_snn(x_batch_mini.to_dense())
         mem_rec, spk_rec = other_recordings
-        acc_test = compute_classification_accuracy(x_test, y_test)
+        acc_test = compute_classification_accuracy(batch_cache_test)
 
         xp_res = {
             'w1': w1.cpu().detach().numpy(),
