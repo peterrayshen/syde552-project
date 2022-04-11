@@ -101,7 +101,7 @@ for i in range(xp_params['num_xps']):
     else:
         raise ValueError('xp type not recognized')
 
-    gen_tau_np = np.floor(gen_tau_np, 5e-3)
+    gen_tau_np[gen_tau_np < 5e-3] = 5e-3
     beta_np = np.exp(-time_step/gen_tau_np)
     beta_torch = torch.from_numpy(beta_np).float().to(device=device)
 
